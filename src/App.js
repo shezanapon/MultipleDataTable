@@ -31,6 +31,7 @@ function App() {
     <div className="App">
       <HomePage data={data}/>
       
+      
     </div>
   );
 }

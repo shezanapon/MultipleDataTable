@@ -12,6 +12,7 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 import Paper from "@mui/material/Paper";
 import { visuallyHidden } from "@mui/utils";
 import moment from "moment";
+import { Button, Popover, Typography } from "@mui/material";
 
 function descendingComparator(a, b, orderBy) {
   if (b[orderBy] < a[orderBy]) {
@@ -77,6 +78,12 @@ const headCells = [
     numeric: false,
     disablePadding: false,
     label: "Request",
+  },
+  {
+    id: "json_view",
+    numeric: false,
+    disablePadding: false,
+    label: "JSON View",
   },
 
 ];
@@ -147,6 +154,31 @@ export default function ErrorLogTable({ data }) {
   const [page, setPage] = React.useState(0);
 
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  const [selectedRowData, setSelectedRowData] = React.useState(null);
+
+  React.useEffect(()=>{
+    document.addEventListener("click", handleClosePopover);
+    return () => {
+      document.removeEventListener("click", handleClosePopover);
+    };
+  },[anchorEl])
+  const handleClosePopover = (event) => {
+    if (anchorEl && !anchorEl.contains(event.target)) {
+      setAnchorEl(null);
+    }
+  };
+  const handleClick = (event, rowData) => {
+    setSelectedRowData(rowData);
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const open = Boolean(anchorEl);
+  const id = open ? "simple-popover" : undefined;
 
   const handleRequestSort = (event, property) => {
     const isAsc = orderBy === property && order === "asc";
@@ -154,6 +186,40 @@ export default function ErrorLogTable({ data }) {
     setOrderBy(property);
     console.log(`Sorting by ${property} in ${isAsc ? 'descending' : 'ascending'} order`);
   };
+ 
+ const compareName = (a, b, order) => {
+  const A = a.created_at.toString();
+  const B = b.created_at.toString();
+
+  if (order === "asc") {
+    if (A < B) return -1;
+    if (A > B) return 1;
+    return 0;
+  } else {
+    if (B < A) return -1;
+    if (B > A) return 1;
+    return 0;
+  }
+};
+const compareDates = (a, b, order) => {
+  const dateA = new Date(a.created_at);
+  const dateB = new Date(b.created_at);
+
+  if (order === "asc") {
+    return dateA - dateB;
+  } else {
+    return dateB - dateA;
+  }
+};
+const compareID = (a, b, order) => {
+  const id_A = a.id;
+  const id_B = b.id;
+  if (order === "asc") {
+    return id_A - id_B;
+  } else {
+    return id_B - id_A;
+  }
+};
 
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
@@ -164,24 +230,24 @@ export default function ErrorLogTable({ data }) {
     setSelected([]);
   };
 
-  const handleClick = (event, id) => {
-    const selectedIndex = selected.indexOf(id);
-    let newSelected = [];
+  // const handleClick = (event, id) => {
+  //   const selectedIndex = selected.indexOf(id);
+  //   let newSelected = [];
 
-    if (selectedIndex === -1) {
-      newSelected = newSelected.concat(selected, id);
-    } else if (selectedIndex === 0) {
-      newSelected = newSelected.concat(selected.slice(1));
-    } else if (selectedIndex === selected.length - 1) {
-      newSelected = newSelected.concat(selected.slice(0, -1));
-    } else if (selectedIndex > 0) {
-      newSelected = newSelected.concat(
-        selected.slice(0, selectedIndex),
-        selected.slice(selectedIndex + 1)
-      );
-    }
-    setSelected(newSelected);
-  };
+  //   if (selectedIndex === -1) {
+  //     newSelected = newSelected.concat(selected, id);
+  //   } else if (selectedIndex === 0) {
+  //     newSelected = newSelected.concat(selected.slice(1));
+  //   } else if (selectedIndex === selected.length - 1) {
+  //     newSelected = newSelected.concat(selected.slice(0, -1));
+  //   } else if (selectedIndex > 0) {
+  //     newSelected = newSelected.concat(
+  //       selected.slice(0, selectedIndex),
+  //       selected.slice(selectedIndex + 1)
+  //     );
+  //   }
+  //   setSelected(newSelected);
+  // };
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -201,7 +267,15 @@ export default function ErrorLogTable({ data }) {
   const visibleRows = React.useMemo(
     () =>
     
-      stableSort(error_data, getComparator(order, orderBy)).slice(
+      stableSort(error_data, (a, b) =>
+      orderBy === "name"
+        ? compareName(a, b, order):
+        orderBy === "function_ref"
+        ? compareName(a, b, order):
+        orderBy==="created_at"?compareDates(a, b, order):
+        orderBy === "id"
+        ? compareID(a, b, order)
+        : getComparator(order, orderBy)).slice(
         page * rowsPerPage,
         page * rowsPerPage + rowsPerPage
       ),
@@ -253,7 +327,7 @@ export default function ErrorLogTable({ data }) {
                 return (
                   <TableRow
                     hover
-                    onClick={(event) => handleClick(event, row.id)}
+                    onClick={(event) => handleClick(event, row)}
                     role="checkbox"
                     aria-checked={isItemSelected}
                     tabIndex={-1}
@@ -293,6 +367,37 @@ export default function ErrorLogTable({ data }) {
                     onClick={() => handleCopyToClipboard(JSON.stringify(row?.request))}
                     sx={{ paddingLeft: "20px" }} align="left">
                       {truncateString(JSON.stringify(row?.request),30)}
+                    </TableCell>
+                    <TableCell>
+                    <div>
+                      <Button
+                        aria-describedby={id}
+                        size="small"
+                        variant="outlined"
+                        onClick={(event) => handleClick(event, row)}
+                      >
+                        view
+                      </Button>
+                      <Popover
+                      // sx={{maxWidth:"800px"}}
+                        id={id}
+                        open={open}
+                        anchorEl={anchorEl}
+                        onClose={handleClose}
+                        anchorOrigin={{
+                          vertical: "bottom",
+                          horizontal: "right",
+                        }}
+                      >
+                        {selectedRowData && (
+                          <Typography sx={{ p: 2 }}>
+                            <pre>
+                              {JSON.stringify(selectedRowData, null, 2)}
+                            </pre>
+                          </Typography>
+                        )}
+                      </Popover>
+                    </div>
                     </TableCell>
                    
                   </TableRow>
